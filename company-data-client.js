@@ -73,16 +73,37 @@
     return displayValue.length > 0 && !NON_VALUES.has(displayValue) && Boolean(point.source_url);
   }
 
+  const REQUEST_TIMEOUT_MS = 12000;
+
+  async function requestProfile(lookup) {
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    const timer = controller ? setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS) : null;
+    try {
+      return await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_public_company_profile`, {
+        method: "POST",
+        headers: {
+          apikey: PUBLISHABLE_KEY,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ p_lookup: String(lookup) }),
+        signal: controller ? controller.signal : undefined
+      });
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
   async function fetchVerifiedProfile(lookup) {
     if (!lookup) return null;
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_public_company_profile`, {
-      method: "POST",
-      headers: {
-        apikey: PUBLISHABLE_KEY,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ p_lookup: String(lookup) })
-    });
+    let response;
+    try {
+      response = await requestProfile(lookup);
+      if (response.status >= 500) throw new Error(`Verified company data: ${response.status}`);
+    } catch (_firstError) {
+      // 通信エラー・タイムアウト・サーバーエラーは1回だけ自動で再試行する
+      await new Promise(resolve => setTimeout(resolve, 800));
+      response = await requestProfile(lookup);
+    }
     if (!response.ok) throw new Error(`Verified company data: ${response.status}`);
     const body = await response.json();
     if (!body || !body.company) return null;

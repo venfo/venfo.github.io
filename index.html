@@ -2460,6 +2460,7 @@ body.mobile-experience .quarry-scroll-cue {
 .verified-quality{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}
 .verified-quality span{padding:6px 8px;border:1px solid rgba(55,108,80,.15);border-radius:99px;background:#f4faf6;color:#315c49;font-size:8px;font-weight:800}
 .verified-empty-tech{padding:24px 0;color:#7a6d5c;font-size:11px;line-height:1.7}
+.verified-retry-btn{margin-top:12px;cursor:pointer}
 
 </style>
 </head>
@@ -2723,7 +2724,7 @@ body.mobile-experience .quarry-scroll-cue {
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script src="company-data-client.js?v=20260903-restore"></script>
+  <script src="company-data-client.js?v=20261126-retry"></script>
   <script>
 
 /* ===== VENTURE INFO anonymous analytics ===== */
@@ -4571,12 +4572,23 @@ function applyVerifiedProfile(company, profile) {
   renderVerifiedDetail(company, groups.some(g => g.key === featuredGroup) ? featuredGroup : groups[0].key);
 }
 
-function renderVerifiedUnavailable(company, summary, message) {
+function renderVerifiedUnavailable(company, summary, message, options = {}) {
   if (state.selectedCompany !== company) return;
   document.getElementById("dialogSummary").textContent = summary;
   els.snapshotGrid.innerHTML = "";
   els.detailTabs.innerHTML = "";
-  els.detailBody.innerHTML = `<div class="verified-empty-tech">${viEsc(message)}</div>`;
+  els.detailBody.innerHTML = `<div class="verified-empty-tech">${viEsc(message)}${
+    options.retry ? `<br><button type="button" class="soft-btn verified-retry-btn">もう一度読み込む</button>` : ""
+  }</div>`;
+  const retryBtn = els.detailBody.querySelector(".verified-retry-btn");
+  if (retryBtn) {
+    retryBtn.addEventListener("click", () => {
+      if (state.selectedCompany !== company) return;
+      document.getElementById("dialogSummary").textContent = "確認済み公開情報を読み込んでいます…";
+      els.detailBody.innerHTML = `<div class="verified-empty-tech">Supabaseから出典確認済みの企業情報を取得しています…</div>`;
+      loadVerifiedProfile(company);
+    });
+  }
   els.dialogSources.innerHTML = "";
   const banner = document.querySelector(".official-data-banner");
   if (banner) {
@@ -4616,7 +4628,8 @@ async function loadVerifiedProfile(company) {
       renderVerifiedUnavailable(
         company,
         "確認済み企業データの読み込みに失敗しました。",
-        "推測データには切り替えません。通信状態を確認して再度開いてください。"
+        "推測データには切り替えません。通信状態を確認して、もう一度読み込んでください。",
+        { retry: true }
       );
     }
   }
