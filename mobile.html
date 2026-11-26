@@ -2748,6 +2748,13 @@ localStorage.setItem(ANALYTICS_SESSION_KEY, analyticsSessionId);
 
 let analyticsQueue = [];
 let analyticsFlushTimer = null;
+let analyticsFailures = 0;
+let analyticsRetryAt = 0;
+let analyticsLastDigAt = 0;
+const ANALYTICS_BATCH_SIZE = 40;
+const ANALYTICS_FLUSH_MS = 6000;
+const ANALYTICS_MAX_QUEUE = 200;
+const ANALYTICS_DIG_INTERVAL_MS = 350;
 
 function analyticsReady() {
   return /^https:\/\/.+\.supabase\.co\/?$/.test(ANALYTICS_CONFIG.supabaseUrl) &&
@@ -2784,6 +2791,12 @@ async function analyticsPost(table, rows, keepalive = false) {
 }
 
 function analyticsTrack(eventType, payload = {}) {
+  if (eventType === "dig") {
+    // 1回のドラッグで大量のdigが出るため、一定間隔ごとに1件だけ記録する
+    const now = Date.now();
+    if (now - analyticsLastDigAt < ANALYTICS_DIG_INTERVAL_MS) return;
+    analyticsLastDigAt = now;
+  }
   analyticsQueue.push({
     session_id: analyticsSessionId,
     event_type: eventType,
@@ -2798,10 +2811,16 @@ function analyticsTrack(eventType, payload = {}) {
     metadata: payload.metadata || {}
   });
 
-  if (analyticsQueue.length >= 8) {
+  if (analyticsQueue.length > ANALYTICS_MAX_QUEUE) {
+    analyticsQueue.splice(0, analyticsQueue.length - ANALYTICS_MAX_QUEUE);
+  }
+
+  const backingOff = Date.now() < analyticsRetryAt;
+  if (analyticsQueue.length >= ANALYTICS_BATCH_SIZE && !backingOff) {
     analyticsFlush();
   } else if (!analyticsFlushTimer) {
-    analyticsFlushTimer = setTimeout(() => analyticsFlush(), 5000);
+    const wait = Math.max(ANALYTICS_FLUSH_MS, analyticsRetryAt - Date.now());
+    analyticsFlushTimer = setTimeout(() => analyticsFlush(), wait);
   }
 }
 
@@ -2811,11 +2830,30 @@ async function analyticsFlush(keepalive = false) {
 
   if (!analyticsQueue.length || !analyticsReady()) return;
 
+  if (!keepalive && Date.now() < analyticsRetryAt) {
+    analyticsFlushTimer = setTimeout(() => analyticsFlush(), analyticsRetryAt - Date.now());
+    return;
+  }
+
   const batch = analyticsQueue.splice(0, analyticsQueue.length);
   const ok = await analyticsPost("events", batch, keepalive);
 
-  if (!ok && !keepalive) {
-    analyticsQueue.unshift(...batch.slice(-40));
+  if (ok) {
+    analyticsFailures = 0;
+    analyticsRetryAt = 0;
+    return;
+  }
+  if (!keepalive) {
+    // 失敗時は間隔を倍々に空けて再送（最大60秒）
+    analyticsFailures += 1;
+    analyticsRetryAt = Date.now() + Math.min(60000, 5000 * 2 ** (analyticsFailures - 1));
+    analyticsQueue.unshift(...batch.slice(-ANALYTICS_MAX_QUEUE));
+    if (analyticsQueue.length > ANALYTICS_MAX_QUEUE) {
+      analyticsQueue.splice(0, analyticsQueue.length - ANALYTICS_MAX_QUEUE);
+    }
+    if (!analyticsFlushTimer) {
+      analyticsFlushTimer = setTimeout(() => analyticsFlush(), analyticsRetryAt - Date.now());
+    }
   }
 }
 
