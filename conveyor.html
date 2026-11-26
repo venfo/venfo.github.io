@@ -78,7 +78,7 @@ dialog{border-radius:18px 18px 0 0;margin:auto 0 0;width:100%;max-width:none}
 <div class="conveyor"><div class="belt-top"></div><div class="rail"></div><div class="rollers"><div class="roller"></div><div class="roller"></div><div class="roller"></div><div class="roller"></div><div class="roller"></div><div class="roller"></div><div class="roller"></div><div class="roller"></div><div class="roller"></div><div class="roller"></div><div class="roller"></div></div><div class="legs"></div></div><div class="ore-layer" id="oreLayer"></div>
 <div class="status"><span class="dot"></span><b>LINE RUNNING</b>　未保存 <span id="remaining">100</span> / 100社</div><div class="hint">銀鉱石をクリック → 企業情報 → 図鑑に保存</div></main>
 <dialog id="companyDialog"><div class="modal-head"><div class="modal-ore" id="dialogOre">SME</div><div><small id="dialogIndustry"></small><h2 id="dialogName"></h2><p id="dialogSummary"></p></div><button class="close" id="closeDialog">×</button></div><div class="modal-body"><div class="snapshot" id="snapshot"></div><div class="tabs" id="tabs"></div><div id="detail"></div><div class="sources" id="sources"></div><div class="actions"><button class="save" id="saveBtn">図鑑に保存</button></div></div></dialog>
-<script src="company-data-client.js?v=20260828-all204"></script>
+<script src="company-data-client.js?v=20261126-retry"></script>
 <script>
 const INTEREST_KEY="vi-interest-signals-v1";
 function broadIndustry(i){const s=String(i||"");if(/金融|Fintech|M&A/.test(s))return"金融";if(/人材|教育|福祉/.test(s))return"人材・Platform";if(/自動車/.test(s))return"自動車";if(/通信/.test(s))return"通信";if(/食品|小売|EC|ドラッグ|アパレル|医療/.test(s))return"消費財・小売";if(/製造|半導体|素材|機械|部品|電機/.test(s))return"メーカー・DX";if(/商社/.test(s))return"総合商社";if(/広告|メディア|エンタメ/.test(s))return"テック・メディア";return"IT・SI";}
